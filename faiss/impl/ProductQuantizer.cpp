@@ -13,6 +13,7 @@
 #include <cstdio>
 #include <cstring>
 #include <memory>
+#include <vector>
 
 #include <algorithm>
 
@@ -198,6 +199,78 @@ void ProductQuantizer::train(size_t n, const float* x) {
         for (int m = 0; m < M; m++) {
             set_params(clus.centroids.data(), m);
         }
+    }
+}
+
+template <typename C, class PQEncoder>
+void compute_k_closest_codes(const ProductQuantizer& pq, 
+    const float* x, 
+    size_t k, 
+    uint8_t* code) {
+    std::vector<float> distances(pq.M * pq.ksub);
+
+    // It seems to be meaningless to allocate std::vector<float> distances.
+    // But it is done in order to cope the ineffectiveness of the way
+    // the compiler generates the code. Basically, doing something like
+    //
+    //     size_t min_distance = HUGE_VALF;
+    //     size_t idxm = 0;
+    //     for (size_t i = 0; i < N; i++) {
+    //         const float distance = compute_distance(x, y + i * d, d);
+    //         if (distance < min_distance) {
+    //            min_distance = distance;
+    //            idxm = i;
+    //         }
+    //     }
+    //
+    // generates significantly more CPU instructions than the baseline
+    //
+    //     std::vector<float> distances_cached(N);
+    //     for (size_t i = 0; i < N; i++) {
+    //         distances_cached[i] = compute_distance(x, y + i * d, d);
+    //     }
+    //     size_t min_distance = HUGE_VALF;
+    //     size_t idxm = 0;
+    //     for (size_t i = 0; i < N; i++) {
+    //         const float distance = distances_cached[i];
+    //         if (distance < min_distance) {
+    //            min_distance = distance;
+    //            idxm = i;
+    //         }
+    //     }
+    //
+    // So, the baseline is faster. This is because of the vectorization.
+    // I suppose that the branch predictor might affect the performance as well.
+    // So, the buffer is allocated, but it might be unused in
+    // manually optimized code. Let's hope that the compiler is smart enough to
+    // get rid of std::vector allocation in such a case.
+
+    
+
+    float_minheap_array_t res = {
+        size_t(pq.ksub), size_t(k), , distances.data() + m * pq.ksub};
+
+    PQEncoder encoder(code, pq.nbits);
+    for (size_t m = 0; m < pq.M; m++) {
+        const float* xsub = x + m * pq.dsub;
+
+        uint64_t idxm = 0;
+        if (pq.transposed_centroids.empty()) {
+            // the regular version
+            fvec_L2sqr_ny(
+                    distances.data() + m * pq.ksub,
+                    xsub,
+                    pq.get_centroids(m, 0),
+                    pq.dsub,
+                    pq.ksub);
+        } else {
+            // transposed centroids are available, use'em
+            throw std::runtime_error("not implemented");
+        }
+
+
+
+        encoder.encode(idxm);
     }
 }
 
@@ -770,6 +843,31 @@ void ProductQuantizer::search_ip(
     FAISS_THROW_IF_NOT(nx == res->nh);
     std::unique_ptr<float[]> dis_tables(new float[nx * ksub * M]);
     compute_inner_prod_tables(nx, x, dis_tables.get());
+
+    pq_knn_search_with_tables<CMin<float, int64_t>>(
+            *this,
+            nbits,
+            dis_tables.get(),
+            codes,
+            ncodes,
+            res,
+            init_finalize_heap);
+}
+
+void ProductQuantizer::search_centroid_ip(
+    const float* __restrict x,
+    size_t nx,
+    float_minheap_array_t* res,
+    bool init_finalize_heap) const {
+    FAISS_THROW_IF_NOT(nx == res->nh);
+    std::unique_ptr<float[]> dis_tables(new float[nx * ksub * M]);
+    compute_inner_prod_tables(nx, x, dis_tables.get());
+
+    std::unique_ptr<uint8_t[]> found_centroid_labels(new uint8_t[nx * code_size]);
+    std::unique_ptr<float[]> distances(new float[nx * ksub]);
+
+    float_minheap_array_t m_partition = { 
+        size_t(nx * M), size_t(res->k), found_centroid_labels, distances.get() };
 
     pq_knn_search_with_tables<CMin<float, int64_t>>(
             *this,

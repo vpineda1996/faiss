@@ -71,6 +71,32 @@ void IndexPQ::train(idx_t n, const float* x) {
     is_trained = true;
 }
 
+void IndexPQ::search_centroids(
+        idx_t n,
+        const float* x,
+        idx_t k,
+        float* distances,
+        idx_t* centroid_ids,
+        const SearchParameters* params) const {
+    FAISS_THROW_IF_NOT(is_trained);
+    FAISS_THROW_IF_NOT(params == nullptr);
+    FAISS_THROW_IF_NOT_MSG(
+            search_type == ST_PQ,
+            "search_centroids not implemented for polysemous search");
+
+    if (metric_type == METRIC_L2) {
+        float_maxheap_array_t res = {
+                size_t(n), size_t(k), centroid_ids, distances};
+        pq.search(x, n, codes.data(), ntotal, &res, true);
+    } else {
+        float_minheap_array_t res = {
+                size_t(n), size_t(k), centroid_ids, distances};
+        pq.search_ip(x, n, codes.data(), ntotal, &res, true);
+    }
+    indexPQ_stats.nq += n;
+    indexPQ_stats.ncode += n * ntotal;
+}
+
 namespace {
 
 template <class PQDecoder>

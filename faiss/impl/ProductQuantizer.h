@@ -163,6 +163,12 @@ struct ProductQuantizer : Quantizer {
             float_minheap_array_t* res,
             bool init_finalize_heap = true) const;
 
+    void search_centroid_ip(
+            const float* x,
+            size_t nx,
+            float_minheap_array_t* res,
+            bool init_finalize_heap = true) const;
+
     /// Symmetric Distance Table
     std::vector<float> sdc_table;
 
