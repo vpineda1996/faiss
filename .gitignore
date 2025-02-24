@@ -7,7 +7,10 @@
 *.dylib
 *.pyc
 *~
+.idea
+.vscode
 /build/
+/cmake-build-debug/
 /config.*
 /aclocal.m4
 /autom4te.cache/

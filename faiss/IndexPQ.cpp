@@ -76,25 +76,18 @@ void IndexPQ::search_centroids(
         const float* x,
         idx_t k,
         float* distances,
-        idx_t* centroid_ids,
+        size_t* centroid_ids,
         const SearchParameters* params) const {
     FAISS_THROW_IF_NOT(is_trained);
     FAISS_THROW_IF_NOT(params == nullptr);
     FAISS_THROW_IF_NOT_MSG(
             search_type == ST_PQ,
             "search_centroids not implemented for polysemous search");
+    FAISS_THROW_IF_NOT_MSG(metric_type == METRIC_INNER_PRODUCT, "only inner product supported");
+    FAISS_THROW_IF_NOT_MSG(k == 1, "Only k == 1 is supported at the moment");
 
-    if (metric_type == METRIC_L2) {
-        float_maxheap_array_t res = {
-                size_t(n), size_t(k), centroid_ids, distances};
-        pq.search(x, n, codes.data(), ntotal, &res, true);
-    } else {
-        float_minheap_array_t res = {
-                size_t(n), size_t(k), centroid_ids, distances};
-        pq.search_ip(x, n, codes.data(), ntotal, &res, true);
-    }
-    indexPQ_stats.nq += n;
-    indexPQ_stats.ncode += n * ntotal;
+    sa_encode(n, x, reinterpret_cast<uint8_t*>(centroid_ids));
+    sa_decode(n, reinterpret_cast<uint8_t*>(centroid_ids), distances);
 }
 
 namespace {
@@ -406,7 +399,7 @@ void IndexPQ::search_core_polysemous(
             switch (pq.code_size) {
 #define DISPATCH(cs)                                             \
     case cs:                                                     \
-        n_pass += polysemous_inner_loop<GenHammingComputer##cs>( \
+        n_pass += polysemous_inner_loop<GenHammingComputer## cs>( \
                 this,                                            \
                 dis_table_qi,                                    \
                 q_code,                                          \

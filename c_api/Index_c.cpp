@@ -11,6 +11,7 @@
 #include <faiss/Index.h>
 #include <faiss/impl/IDSelector.h>
 #include "macros_impl.h"
+#include <cstddef>
 
 extern "C" {
 
@@ -76,6 +77,20 @@ int faiss_Index_search(
     try {
         reinterpret_cast<const faiss::Index*>(index)->search(
                 n, x, k, distances, labels);
+    }
+    CATCH_AND_HANDLE
+}
+
+int faiss_Index_search_centroids(
+        const FaissIndex* index,
+        idx_t n,
+        const float* x,
+        idx_t k,
+        float* distances,
+        size_t* centroid_ids) {
+    try {
+        reinterpret_cast<const faiss::Index*>(index)->search_centroids(
+                n, x, k, distances, centroid_ids);
     }
     CATCH_AND_HANDLE
 }

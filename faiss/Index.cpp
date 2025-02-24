@@ -54,6 +54,16 @@ void Index::reconstruct(idx_t, float*) const {
     FAISS_THROW_MSG("reconstruct not implemented for this type of index");
 }
 
+void Index::search_centroids(
+            idx_t n,
+            const float* x,
+            idx_t k,
+            float* distances,
+            size_t* centroid_ids,
+            const SearchParameters* params) const {
+    FAISS_THROW_MSG("search_centroids not implemented for this type of index");
+}
+
 void Index::reconstruct_batch(idx_t n, const idx_t* keys, float* recons) const {
     std::mutex exception_mutex;
     std::string exception_string;

@@ -165,6 +165,14 @@ struct Index {
             RangeSearchResult* result,
             const SearchParameters* params = nullptr) const;
 
+    virtual void search_centroids(
+                idx_t n,
+                const float* x,
+                idx_t k,
+                float* distances,
+                size_t* centroid_ids,
+                const SearchParameters* params = nullptr) const;
+
     /** return the indexes of the k vectors closest to the query x.
      *
      * This function is identical as search but only return labels of
