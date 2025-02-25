@@ -86,8 +86,9 @@ void IndexPQ::search_centroids(
     FAISS_THROW_IF_NOT_MSG(metric_type == METRIC_INNER_PRODUCT, "only inner product supported");
     FAISS_THROW_IF_NOT_MSG(k == 1, "Only k == 1 is supported at the moment");
 
+    std::unique_ptr<float[]> expanded = std::make_unique<float[]>(pq.M * pq.dsub);
     sa_encode(n, x, reinterpret_cast<uint8_t*>(centroid_ids));
-    sa_decode(n, reinterpret_cast<uint8_t*>(centroid_ids), distances);
+    sa_decode(n, reinterpret_cast<uint8_t*>(centroid_ids), expanded.get());
 }
 
 namespace {

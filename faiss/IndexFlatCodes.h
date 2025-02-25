@@ -10,10 +10,21 @@
 #include <faiss/Index.h>
 #include <faiss/impl/DistanceComputer.h>
 #include <vector>
+#include <unordered_map>
 
 namespace faiss {
 
 struct CodePacker;
+
+struct VectorHasher {
+  int operator()(const std::vector<uint8_t>& vec) const {
+    std::size_t seed = vec.size();
+    for(auto& i : vec) {
+      seed ^= i + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    }
+    return seed;
+  }
+};
 
 /** Index that encodes all vectors as fixed-size codes (size code_size). Storage
  * is in the codes vector */
@@ -22,6 +33,10 @@ struct IndexFlatCodes : Index {
 
     /// encoded dataset, size ntotal * code_size
     std::vector<uint8_t> codes;
+
+    /// HACK! vgonzla, set to know what we have stored and how many times its
+    /// been computed
+    std::unordered_map<std::vector<uint8_t>, int, VectorHasher> seen_codes;
 
     IndexFlatCodes();
 
@@ -81,6 +96,8 @@ struct IndexFlatCodes : Index {
 
     // permute_entries. perm of size ntotal maps new to old positions
     void permute_entries(const idx_t* perm);
+
+    void clean_up_last_n_entries(idx_t n);
 };
 
 } // namespace faiss

@@ -18,18 +18,46 @@
 namespace faiss {
 
 IndexFlatCodes::IndexFlatCodes(size_t code_size, idx_t d, MetricType metric)
-        : Index(d, metric), code_size(code_size) {}
+        : Index(d, metric), code_size(code_size), seen_codes() {}
 
-IndexFlatCodes::IndexFlatCodes() : code_size(0) {}
+IndexFlatCodes::IndexFlatCodes() : code_size(0), seen_codes() {}
 
 void IndexFlatCodes::add(idx_t n, const float* x) {
     FAISS_THROW_IF_NOT(is_trained);
     if (n == 0) {
         return;
     }
+
     codes.resize((ntotal + n) * code_size);
     sa_encode(n, x, codes.data() + (ntotal * code_size));
     ntotal += n;
+    clean_up_last_n_entries(n);
+}
+
+void IndexFlatCodes::clean_up_last_n_entries(idx_t n) {
+    FAISS_THROW_IF_NOT(is_trained);
+    idx_t original_ntotal = ntotal - n;
+
+    // clear up added dupes
+    std::vector<uint8_t> tmp(code_size);
+    std::vector<idx_t> to_remove_idx;
+    for (idx_t idx_ptr = original_ntotal; idx_ptr < n + original_ntotal; idx_ptr++) {
+        memcpy(tmp.data(),
+            codes.data() + idx_ptr * code_size,
+            code_size);
+
+        if (seen_codes.find(tmp) == seen_codes.end()) {
+            // have not seen
+            seen_codes[tmp] = 1;
+        } else {
+            // have seen, add to remove list
+            seen_codes[tmp]++;
+            to_remove_idx.push_back(idx_ptr);
+        }
+    }
+    if (!to_remove_idx.empty()) {
+        remove_ids(IDSelectorBatch(to_remove_idx.size(), to_remove_idx.data()));
+    }
 }
 
 void IndexFlatCodes::add_sa_codes(
@@ -39,6 +67,7 @@ void IndexFlatCodes::add_sa_codes(
     codes.resize((ntotal + n) * code_size);
     memcpy(codes.data() + (ntotal * code_size), codes_in, n * code_size);
     ntotal += n;
+    clean_up_last_n_entries(n);
 }
 
 void IndexFlatCodes::reset() {
