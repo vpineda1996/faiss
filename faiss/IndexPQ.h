@@ -46,12 +46,13 @@ struct IndexPQ : IndexFlatCodes {
             const SearchParameters* params = nullptr) const override;
 
 
-    void search_centroids(
+  void search_frequencies(
             idx_t n,
             const float* x,
             idx_t k,
             float* distances,
-            size_t* centroid_ids,
+            idx_t* labels,
+            size_t* frequency,
             const SearchParameters* params) const override;
 
     /* The standalone codec interface */

@@ -81,16 +81,17 @@ int faiss_Index_search(
     CATCH_AND_HANDLE
 }
 
-int faiss_Index_search_centroids(
+int faiss_Index_search_frequencies(
         const FaissIndex* index,
         idx_t n,
         const float* x,
         idx_t k,
         float* distances,
-        size_t* centroid_ids) {
+        idx_t* labels,
+        size_t* frequencies) {
     try {
-        reinterpret_cast<const faiss::Index*>(index)->search_centroids(
-                n, x, k, distances, centroid_ids);
+        reinterpret_cast<const faiss::Index*>(index)->search_frequencies(
+            n, x, k, distances, labels, frequencies);
     }
     CATCH_AND_HANDLE
 }

@@ -165,12 +165,13 @@ struct Index {
             RangeSearchResult* result,
             const SearchParameters* params = nullptr) const;
 
-    virtual void search_centroids(
+    virtual void search_frequencies(
                 idx_t n,
                 const float* x,
                 idx_t k,
                 float* distances,
-                size_t* centroid_ids,
+                idx_t* labels,
+                size_t* frequency,
                 const SearchParameters* params = nullptr) const;
 
     /** return the indexes of the k vectors closest to the query x.

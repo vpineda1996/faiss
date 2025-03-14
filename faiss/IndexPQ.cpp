@@ -71,12 +71,13 @@ void IndexPQ::train(idx_t n, const float* x) {
     is_trained = true;
 }
 
-void IndexPQ::search_centroids(
+void IndexPQ::search_frequencies(
         idx_t n,
         const float* x,
         idx_t k,
         float* distances,
-        size_t* centroid_ids,
+        idx_t* labels,
+        size_t* frequency,
         const SearchParameters* params) const {
     FAISS_THROW_IF_NOT(is_trained);
     FAISS_THROW_IF_NOT(params == nullptr);
@@ -84,11 +85,18 @@ void IndexPQ::search_centroids(
             search_type == ST_PQ,
             "search_centroids not implemented for polysemous search");
     FAISS_THROW_IF_NOT_MSG(metric_type == METRIC_INNER_PRODUCT, "only inner product supported");
-    FAISS_THROW_IF_NOT_MSG(k == 1, "Only k == 1 is supported at the moment");
 
-    std::unique_ptr<float[]> expanded = std::make_unique<float[]>(pq.M * pq.dsub);
-    sa_encode(n, x, reinterpret_cast<uint8_t*>(centroid_ids));
-    sa_decode(n, reinterpret_cast<uint8_t*>(centroid_ids), expanded.get());
+    // issue search call downstream
+    search(n, x, k, distances, labels, params);
+
+    // populate the frequency array based on the collected labels
+    for (int i = 0; i < n; i++) {
+        idx_t* x_labels = labels + i * k;
+        for (int ik = 0; ik < k; ik++) {
+            auto label = x_labels[ik];
+            frequency[i*k + ik] = seen_codes_by_label[label];
+        }
+    }
 }
 
 namespace {

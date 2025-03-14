@@ -54,12 +54,13 @@ void Index::reconstruct(idx_t, float*) const {
     FAISS_THROW_MSG("reconstruct not implemented for this type of index");
 }
 
-void Index::search_centroids(
+void Index::search_frequencies(
             idx_t n,
             const float* x,
             idx_t k,
             float* distances,
-            size_t* centroid_ids,
+            idx_t* labels,
+            size_t* frequency,
             const SearchParameters* params) const {
     FAISS_THROW_MSG("search_centroids not implemented for this type of index");
 }

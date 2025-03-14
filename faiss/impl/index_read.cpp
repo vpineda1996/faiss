@@ -590,6 +590,7 @@ Index* read_index(IOReader* f, int io_flags) {
         read_ProductQuantizer(&idxp->pq, f);
         idxp->code_size = idxp->pq.code_size;
         READVECTOR(idxp->codes);
+        READVECTOR(idxp->seen_codes_by_label);
         if (h == fourcc("IxPo") || h == fourcc("IxPq")) {
             READ1(idxp->search_type);
             READ1(idxp->encode_signs);

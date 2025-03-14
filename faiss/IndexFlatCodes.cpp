@@ -32,9 +32,29 @@ void IndexFlatCodes::add(idx_t n, const float* x) {
     sa_encode(n, x, codes.data() + (ntotal * code_size));
     ntotal += n;
     clean_up_last_n_entries(n);
+    rebuild_seen_index();
 }
 
-void IndexFlatCodes::clean_up_last_n_entries(idx_t n) {
+void IndexFlatCodes::rebuild_seen_index() {
+    std::vector<uint8_t> tmp(code_size);
+    std::vector<idx_t> to_remove_idx;
+    seen_codes_by_label.resize(ntotal);
+
+    for (idx_t idx_ptr = 0; idx_ptr < ntotal; idx_ptr++) {
+        memcpy(tmp.data(),
+            codes.data() + idx_ptr * code_size,
+            code_size);
+
+        if (seen_codes.find(tmp) == seen_codes.end()) {
+            // have not seen
+            throw FaissException("Seen code not found, expected to be there");
+        }
+        seen_codes_by_label[idx_ptr] = seen_codes.at(tmp);
+    }
+}
+
+// Returns the number of removed entries
+size_t IndexFlatCodes::clean_up_last_n_entries(idx_t n) {
     FAISS_THROW_IF_NOT(is_trained);
     idx_t original_ntotal = ntotal - n;
 
@@ -56,8 +76,9 @@ void IndexFlatCodes::clean_up_last_n_entries(idx_t n) {
         }
     }
     if (!to_remove_idx.empty()) {
-        remove_ids(IDSelectorBatch(to_remove_idx.size(), to_remove_idx.data()));
+        return remove_ids(IDSelectorBatch(to_remove_idx.size(), to_remove_idx.data()));
     }
+    return 0;
 }
 
 void IndexFlatCodes::add_sa_codes(
@@ -68,6 +89,7 @@ void IndexFlatCodes::add_sa_codes(
     memcpy(codes.data() + (ntotal * code_size), codes_in, n * code_size);
     ntotal += n;
     clean_up_last_n_entries(n);
+    rebuild_seen_index();
 }
 
 void IndexFlatCodes::reset() {

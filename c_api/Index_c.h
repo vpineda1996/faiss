@@ -113,6 +113,17 @@ int faiss_Index_search(
         float* distances,
         idx_t* labels);
 
+// searches and provides the frequency that the distilled
+// datapoint used
+int faiss_Index_search_frequencies(
+        const FaissIndex* index,
+        idx_t n,
+        const float* x,
+        idx_t k,
+        float* distances,
+        idx_t* labels,
+        size_t* frequencies);
+
 /**
  * query n vectors of dimension d with search parameters to the index.
  *

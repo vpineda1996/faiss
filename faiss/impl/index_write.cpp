@@ -419,6 +419,7 @@ void write_index(const Index* idx, IOWriter* f, int io_flags) {
         write_index_header(idx, f);
         write_ProductQuantizer(&idxp->pq, f);
         WRITEVECTOR(idxp->codes);
+        WRITEVECTOR(idxp->seen_codes_by_label);
         // search params -- maybe not useful to store?
         WRITE1(idxp->search_type);
         WRITE1(idxp->encode_signs);

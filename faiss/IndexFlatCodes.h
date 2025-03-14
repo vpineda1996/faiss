@@ -37,6 +37,7 @@ struct IndexFlatCodes : Index {
     /// HACK! vgonzla, set to know what we have stored and how many times its
     /// been computed
     std::unordered_map<std::vector<uint8_t>, int, VectorHasher> seen_codes;
+    std::vector<size_t> seen_codes_by_label;
 
     IndexFlatCodes();
 
@@ -97,7 +98,9 @@ struct IndexFlatCodes : Index {
     // permute_entries. perm of size ntotal maps new to old positions
     void permute_entries(const idx_t* perm);
 
-    void clean_up_last_n_entries(idx_t n);
+    size_t clean_up_last_n_entries(idx_t n);
+
+    void rebuild_seen_index();
 };
 
 } // namespace faiss
