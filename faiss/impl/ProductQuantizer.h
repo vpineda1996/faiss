@@ -34,6 +34,7 @@ struct ProductQuantizer : Quantizer {
     size_t dsub;  ///< dimensionality of each subvector
     size_t ksub;  ///< number of centroids for each subquantizer
     bool verbose; ///< verbose during training?
+    bool enable_neighbourhood_radius;
 
     /// initialization
     enum train_type_t {

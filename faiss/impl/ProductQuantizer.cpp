@@ -67,7 +67,7 @@ void ProductQuantizer::set_derived_values() {
     ksub = 1 << nbits;
     centroids.resize(d * ksub);
     centroid_radius.resize(M * ksub);
-    verbose = false;
+    verbose = true;
     train_type = Train_default;
 }
 
@@ -747,16 +747,20 @@ void pq_estimators_from_tables(
         size_t k,
         float* heap_dis,
         int64_t* heap_ids) {
-    if (pq.M == 4) {
-        pq_estimators_from_tables_M4<CT, C>(
-                codes, ncodes, dis_table, pq.ksub, k, heap_dis, heap_ids);
-        return;
-    }
 
-    if (pq.M % 4 == 0) {
-        pq_estimators_from_tables_Mmul4<CT, C>(
-                pq.M, codes, ncodes, dis_table, pq.ksub, k, heap_dis, heap_ids);
-        return;
+    // if the neighbourhood radius is enabled, we need to skip the codes
+    if (!pq.enable_neighbourhood_radius) {
+        if (pq.M == 4) {
+            pq_estimators_from_tables_M4<CT, C>(
+                    codes, ncodes, dis_table, pq.ksub, k, heap_dis, heap_ids);
+            return;
+        }
+
+        if (pq.M % 4 == 0) {
+            pq_estimators_from_tables_Mmul4<CT, C>(
+                    pq.M, codes, ncodes, dis_table, pq.ksub, k, heap_dis, heap_ids);
+            return;
+        }
     }
 
     /* Default is relatively slow */
@@ -766,7 +770,11 @@ void pq_estimators_from_tables(
         float dis = 0;
         const float* __restrict dt = dis_table;
         for (int m = 0; m < M; m++) {
-            dis += dt[*codes++];
+            if (pq.enable_neighbourhood_radius && dt[*codes] <= pq.centroid_radius[m * pq.ksub + *codes]) {
+                codes++;
+            } else {
+                dis += dt[*codes++];
+            }
             dt += ksub;
         }
         if (C::cmp(heap_dis[0], dis)) {

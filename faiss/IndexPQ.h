@@ -44,7 +44,7 @@ struct IndexPQ : IndexFlatCodes {
             float* distances,
             idx_t* labels,
             size_t* frequency,
-            const SearchParameters* params = nullptr) const;
+            const SearchParameters* params = nullptr);
 
     // override add method
     void add(idx_t n, const float* x) override;
