@@ -84,7 +84,7 @@ void IndexPQ::search_frequencies(
     FAISS_THROW_IF_NOT_MSG(
             search_type == ST_PQ,
             "search_centroids not implemented for polysemous search");
-    FAISS_THROW_IF_NOT_MSG(metric_type == METRIC_INNER_PRODUCT, "only inner product supported");
+    FAISS_THROW_IF_NOT_MSG(metric_type == METRIC_L2 || metric_type == METRIC_INNER_PRODUCT, "only L2 or inner product supported");
 
     // issue search call downstream
     search(n, x, k, distances, labels, params);
