@@ -59,6 +59,61 @@ bool runs_on_sandcastle() {
     return false;
 }
 
+TEST(IndexPQ, codec) {
+    std::vector<float> database(nb * d);
+    std::mt19937 rng;
+    std::uniform_real_distribution<> distrib;
+    for (size_t i = 0; i < nb * d; i++) {
+        database[i] = distrib(rng);
+    }
+
+    // limit number of threads when running on heavily parallelized test
+    // environment
+    if (runs_on_sandcastle()) {
+        omp_set_num_threads(2);
+    }
+
+    // Create and train the IndexPQ
+    int m = 8; // number of subquantizers
+    int nbits = 8; // bits per subquantizer
+    faiss::IndexPQ index(d, m, nbits);
+    index.train(1500, database.data());
+
+    // Encode and decode to compute reconstruction error
+    std::vector<uint8_t> codes(nb * m);
+
+    index.add(1, database.data());
+    index.add(1, database.data() + d);
+    index.add(1, database.data() + 2 * d);
+    index.add(1, database.data() + 3 * d);
+
+    size_t k = 4;
+    size_t nprobe = 5;
+    std::vector<faiss::idx_t> neighbors(nprobe * k * d);
+    std::vector<float> distances(nprobe * k);
+    std::vector<size_t> freq(nprobe * k);
+    
+    index.search_neighbourhood(nprobe, database.data(), k, distances.data(), neighbors.data(), freq.data());
+
+    for (int i = 0; i < nprobe; i++) {
+        for (int j = 0; j < k; j++) {
+            printf("[i=%d][k=%d] Distance: %f, Neighbor: %ld, Frequency: %zu\n", i, j, distances[i * k + j], neighbors[i * k + j], freq[i * k + j]);
+        }
+    }
+
+    // first distance should be zero for the first k vectors
+    for (int i = 0; i < k; i++) {
+        EXPECT_EQ(distances[i * k], 0);
+        EXPECT_EQ(neighbors[i * k], i);
+        EXPECT_EQ(freq[i * k], 1);
+    }
+
+    // k+1... vector should have a non-zero distance to its first neighbor
+    for (int i = k; i < nprobe; i++) {
+        EXPECT_GT(distances[i * k], 0);
+    }
+}
+
 TEST(IVFPQ, codec) {
     std::vector<float> database(nb * d);
     std::mt19937 rng;

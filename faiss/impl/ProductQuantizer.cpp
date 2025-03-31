@@ -66,9 +66,62 @@ void ProductQuantizer::set_derived_values() {
     FAISS_THROW_IF_MSG(nbits > 24, "nbits larger than 24 is not practical.");
     ksub = 1 << nbits;
     centroids.resize(d * ksub);
+    centroid_radius.resize(M * ksub);
     verbose = false;
     train_type = Train_default;
 }
+
+template <class PQDecoder>
+void compute_update_centroid_radi(
+    ProductQuantizer& pq, 
+    const uint8_t* code, 
+    const float* x) {
+    PQDecoder decoder(code, pq.nbits);
+    for (size_t m = 0; m < pq.M; m++) {
+        uint64_t c = decoder.decode();
+        const float* c_m_c = pq.get_centroids(m, c);
+        const float* x_m = x + m * pq.dsub;
+        float dist = fvec_L2sqr(x_m, c_m_c, pq.dsub);
+        
+        // update the centroid radius
+        pq.centroid_radius[m * pq.ksub + c] =
+            std::max(pq.centroid_radius[m * pq.ksub + c], dist);
+
+        // printf("[L] Subspace: %ld, Centroid: %ld, Centroid diam: %f, Distance: %f\n", 
+        //     m, c, pq.centroid_radius[m * pq.ksub + c], dist);
+    }
+}
+
+void ProductQuantizer::update_cetroid_radi(
+    const float* x
+) {
+    std::unique_ptr<uint8_t[]> code(new uint8_t[code_size]);
+    // TODO: encoding the code here, maybe we can avoid doing this?
+    compute_code(x, code.get());
+    switch (nbits) {
+        case 8:
+            faiss::compute_update_centroid_radi<PQDecoder8>(*this, code.get(), x);
+            break;
+
+        case 16:
+            faiss::compute_update_centroid_radi<PQDecoder16>(*this, code.get(), x);
+            break;
+
+        default:
+            faiss::compute_update_centroid_radi<PQDecoderGeneric>(*this, code.get(), x);
+            break;
+    }
+}
+
+void ProductQuantizer::update_cetroid_radi(
+        const float* x,
+        size_t n
+    ) {
+    #pragma omp parallel for if (n > 100)
+        for (int64_t i = 0; i < n; i++) {
+            this->update_cetroid_radi(x + d * i);
+        }
+    }
 
 void ProductQuantizer::set_params(const float* centroids_, int m) {
     memcpy(get_centroids(m, 0),

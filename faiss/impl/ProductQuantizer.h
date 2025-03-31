@@ -55,6 +55,11 @@ struct ProductQuantizer : Quantizer {
     /// Layout: (M, ksub, dsub)
     std::vector<float> centroids;
 
+    /// Describes the max diameter of
+    /// a centroid in the subspace
+    /// Layout: (M, ksub)
+    std::vector<float> centroid_radius;
+
     /// Transposed centroid table, size M * ksub * dsub.
     /// Layout: (dsub, M, ksub)
     std::vector<float> transposed_centroids;
@@ -104,6 +109,15 @@ struct ProductQuantizer : Quantizer {
     /// decode a vector from a given code (or n vectors if third argument)
     void decode(const uint8_t* code, float* x) const;
     void decode(const uint8_t* code, float* x, size_t n) const override;
+
+    void update_cetroid_radi(
+        const float* x
+    );
+
+    void update_cetroid_radi(
+        const float* x,
+        size_t n
+    );
 
     /// If we happen to have the distance tables precomputed, this is
     /// more efficient to compute the codes.

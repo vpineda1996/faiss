@@ -37,6 +37,18 @@ struct IndexPQ : IndexFlatCodes {
 
     void train(idx_t n, const float* x) override;
 
+    void search_neighbourhood(
+            idx_t n,
+            const float* x,
+            idx_t k,
+            float* distances,
+            idx_t* labels,
+            size_t* frequency,
+            const SearchParameters* params = nullptr) const;
+
+    // override add method
+    void add(idx_t n, const float* x) override;
+
     void search(
             idx_t n,
             const float* x,
@@ -46,7 +58,7 @@ struct IndexPQ : IndexFlatCodes {
             const SearchParameters* params = nullptr) const override;
 
 
-  void search_frequencies(
+    void search_frequencies(
             idx_t n,
             const float* x,
             idx_t k,

@@ -19,6 +19,7 @@
 #include <faiss/impl/DistanceComputer.h>
 #include <faiss/impl/FaissAssert.h>
 #include <faiss/utils/hamming.h>
+#include <faiss/utils/distances.h>
 
 #include <faiss/impl/code_distance/code_distance.h>
 
@@ -170,6 +171,66 @@ FlatCodesDistanceComputer* IndexPQ::get_FlatCodesDistanceComputer() const {
     } else {
         return new PQDistanceComputer<PQDecoderGeneric>(*this);
     }
+}
+
+void IndexPQ::add(idx_t n, const float* x) {
+    {
+        // get codes current size
+        size_t current_size = codes.size();
+
+        // add items to codes
+        IndexFlatCodes::add(n, x);
+
+        // if the size changes, then we added codes,
+        // update pq with the new codes
+        if (codes.size() != current_size) {
+            pq.update_cetroid_radi(x, n);
+        }
+    }
+}
+
+void IndexPQ::search_neighbourhood(
+    idx_t n,
+    const float* x,
+    idx_t k,
+    float* distances,
+    idx_t* labels,
+    size_t* frequency,
+    const SearchParameters* params) const {
+    FAISS_THROW_IF_NOT(is_trained);
+    FAISS_THROW_IF_NOT(params == nullptr);
+    FAISS_THROW_IF_NOT_MSG(
+            search_type == ST_PQ,
+            "search_centroids not implemented for polysemous search");
+    FAISS_THROW_IF_NOT_MSG(metric_type == METRIC_L2, "only L2 supported");
+
+    std::vector<float> x_cpy(x, x + n * d);
+    for (int i = 0; i < n; i++) {
+        float* x_i = x_cpy.data() + i * d;
+
+        // check every subspace
+        for (int m = 0; m < pq.M; m++) {
+            float* x_i_m = x_i + m * pq.dsub;
+            float sub_space_min_dist = std::numeric_limits<float>::max();
+            // check every centroid in subspace
+            for (int j = 0; j < pq.ksub; j++) {
+                const float* c_m_j = pq.get_centroids(m, j);
+                float dis = fvec_L2sqr(x_i_m, c_m_j, pq.dsub);
+                
+                // if (pq.centroid_radius[m * pq.ksub + j] > 0) {
+                //     printf("[Q] Subspace: %d, Centroid: %d, Centroid diam: %f, Distance: %f\n", m, j, pq.centroid_radius[m * pq.ksub + j], dis);
+                // }
+                // if distance is smaller than the code's radius
+                if (dis < sub_space_min_dist && dis <= pq.centroid_radius[m * pq.ksub + j]) {
+                    // make copy the centroids coords to x
+                    memcpy(x_i_m, c_m_j, pq.dsub * sizeof(float));
+                    sub_space_min_dist = dis;
+                }
+            }
+        }
+    }
+    // issue search call downstream
+    search_frequencies(n, x_cpy.data(), k, distances, labels, frequency, params);
 }
 
 /*****************************************

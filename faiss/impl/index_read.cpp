@@ -246,6 +246,7 @@ void read_ProductQuantizer(ProductQuantizer* pq, IOReader* f) {
     READ1(pq->nbits);
     pq->set_derived_values();
     READVECTOR(pq->centroids);
+    READVECTOR(pq->centroid_radius);
 }
 
 static void read_ResidualQuantizer_old(ResidualQuantizer* rq, IOReader* f) {
