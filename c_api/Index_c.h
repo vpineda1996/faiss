@@ -124,6 +124,21 @@ int faiss_Index_search_frequencies(
         idx_t* labels,
         size_t* frequencies);
 
+/** query n vectors of dimension d to the index
+ * 
+ * this function defers from search in that the
+ * knn computation takes into account the radius
+ * of the centroids.
+ */
+int faiss_Index_pq_search_neighbourhood(
+        const FaissIndex* index,
+        idx_t n,
+        const float* x,
+        idx_t k,
+        float* distances,
+        idx_t* labels,
+        size_t* frequencies);
+
 /**
  * query n vectors of dimension d with search parameters to the index.
  *
