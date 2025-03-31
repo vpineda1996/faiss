@@ -60,6 +60,9 @@ struct ProductQuantizer : Quantizer {
     /// a centroid in the subspace
     /// Layout: (M, ksub)
     std::vector<float> centroid_radius;
+    /// Describes the number of times the centroid has been used
+    /// Layout: (M, ksub)
+    std::vector<size_t> centroid_n;
 
     /// Transposed centroid table, size M * ksub * dsub.
     /// Layout: (dsub, M, ksub)

@@ -62,7 +62,7 @@ bool runs_on_sandcastle() {
 TEST(IndexPQ, codec) {
     std::vector<float> database(nb * d);
     std::mt19937 rng;
-    std::uniform_real_distribution<> distrib;
+    std::uniform_real_distribution<> distrib(0.0, 1.0);
     for (size_t i = 0; i < nb * d; i++) {
         database[i] = distrib(rng);
     }
@@ -87,6 +87,20 @@ TEST(IndexPQ, codec) {
     index.add(1, database.data() + 2 * d);
     index.add(1, database.data() + 3 * d);
 
+    for (int i = 0; i < 49; i++) {
+        std::vector<float> v(database.data() + 4 * d, database.data() + 5 * d);
+        v[0] = distrib(rng) + 100;
+        index.add(1, v.data());
+    }
+
+    // add a datapoint that skews the average higher
+    std::vector<float> v(database.data() + 4 * d, database.data() + 5 * d);
+    v[0] = distrib(rng) + 200;
+    index.add(1, v.data());
+
+    // modify 0th coord of the 4th vector to fall within the radius
+    database[4 * d] = 100;
+
     size_t k = 4;
     size_t nprobe = 5;
     std::vector<faiss::idx_t> neighbors(nprobe * k * d);
@@ -108,10 +122,21 @@ TEST(IndexPQ, codec) {
         EXPECT_EQ(freq[i * k], 1);
     }
 
+    // within radius
+    EXPECT_EQ(neighbors[k * k], 4);
+    EXPECT_EQ(distances[k * k], 0);
+
     // k+1... vector should have a non-zero distance to its first neighbor
-    for (int i = k; i < nprobe; i++) {
+    for (int i = k+1; i < nprobe; i++) {
         EXPECT_GT(distances[i * k], 0);
     }
+
+    // outside radius by avg
+    database[4 * d] = 120;
+    index.search_neighbourhood(nprobe, database.data(), k, distances.data(), neighbors.data(), freq.data());
+    EXPECT_EQ(neighbors[k * k], 4);
+    // l2 should be greater than 100 
+    EXPECT_GT(distances[k * k], 100*100);
 }
 
 TEST(IVFPQ, codec) {

@@ -67,6 +67,8 @@ void ProductQuantizer::set_derived_values() {
     ksub = 1 << nbits;
     centroids.resize(d * ksub);
     centroid_radius.resize(M * ksub);
+    centroid_n.resize(M * ksub);
+    enable_neighbourhood_radius = false;
     verbose = true;
     train_type = Train_default;
 }
@@ -84,11 +86,9 @@ void compute_update_centroid_radi(
         float dist = fvec_L2sqr(x_m, c_m_c, pq.dsub);
         
         // update the centroid radius
-        pq.centroid_radius[m * pq.ksub + c] =
-            std::max(pq.centroid_radius[m * pq.ksub + c], dist);
-
-        // printf("[L] Subspace: %ld, Centroid: %ld, Centroid diam: %f, Distance: %f\n", 
-        //     m, c, pq.centroid_radius[m * pq.ksub + c], dist);
+        size_t c_n = pq.centroid_n[m * pq.ksub + c];
+        pq.centroid_radius[m * pq.ksub + c] = (((float) c_n) * pq.centroid_radius[m * pq.ksub + c] + dist) / (c_n + 1);
+        pq.centroid_n[m * pq.ksub + c]++;
     }
 }
 
