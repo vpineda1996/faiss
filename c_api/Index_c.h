@@ -131,7 +131,7 @@ int faiss_Index_search_frequencies(
  * of the centroids.
  */
 int faiss_Index_pq_search_neighbourhood(
-        const FaissIndex* index,
+        FaissIndex* index,
         idx_t n,
         const float* x,
         idx_t k,

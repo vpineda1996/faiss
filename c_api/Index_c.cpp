@@ -98,7 +98,7 @@ int faiss_Index_search_frequencies(
 }
 
 int faiss_Index_pq_search_neighbourhood(
-    const FaissIndex* index,
+    FaissIndex* index,
     idx_t n,
     const float* x,
     idx_t k,
@@ -106,7 +106,7 @@ int faiss_Index_pq_search_neighbourhood(
     idx_t* labels,
     size_t* frequencies) {
 try {
-    reinterpret_cast<const faiss::IndexPQ*>(index)->search_neighbourhood(
+    reinterpret_cast<faiss::IndexPQ*>(index)->search_neighbourhood(
         n, x, k, distances, labels, frequencies);
 }
 CATCH_AND_HANDLE
