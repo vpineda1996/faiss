@@ -132,11 +132,50 @@ TEST(IndexPQ, codec) {
     }
 
     // outside radius by avg
-    database[4 * d] = 120;
-    index.search_neighbourhood(nprobe, database.data(), k, distances.data(), neighbors.data(), freq.data());
-    EXPECT_EQ(neighbors[k * k], 4);
-    // l2 should be greater than 100 
-    EXPECT_GT(distances[k * k], 100*100);
+    // database[4 * d] = 120;
+    // index.search_neighbourhood(nprobe, database.data(), k, distances.data(), neighbors.data(), freq.data());
+    // EXPECT_EQ(neighbors[k * k], 4);
+    // // l2 should be greater than 100 
+    // EXPECT_GT(distances[k * k], 100*100);
+
+    // inject many points, test centroid radius age
+    // first group
+    database[5 * d + 1] = 1000;
+    index.add(index.pq.local_idx_div, database.data() + 5 * d);
+    
+    index.search_neighbourhood(1, database.data() + 5 * d, k, distances.data(), neighbors.data(), freq.data());
+
+    for (int i = 0; i < 1; i++) {
+        for (int j = 0; j < k; j++) {
+            printf("[i=%d][k=%d] Distance: %f, Neighbor: %ld, Frequency: %zu\n", i, j, distances[i * k + j], neighbors[i * k + j], freq[i * k + j]);
+        }
+    }
+
+    // second group
+    database[5 * d + index.pq.dsub + 1] = 50;
+    index.add(1, database.data() + 5 * d);
+    index.search_neighbourhood(1, database.data() + 5 * d, k, distances.data(), neighbors.data(), freq.data());
+
+    for (int i = 0; i < 1; i++) {
+        for (int j = 0; j < k; j++) {
+            printf("[i=%d][k=%d] Distance: %f, Neighbor: %ld, Frequency: %zu\n", i, j, distances[i * k + j], neighbors[i * k + j], freq[i * k + j]);
+        }
+    }
+
+    EXPECT_EQ(distances[0], 0);
+    EXPECT_EQ(neighbors[1], 5);
+
+    // Should not match on second neighborhood
+    EXPECT_GE(distances[1], 25*25);
+
+
+    // should match to different pq clusters
+    // EXPECT_NE(neighbors[0 * k], neighbors[1 * k]);
+    
+    // // zero distance to itself
+    // EXPECT_EQ(distances[0 * k], 0);
+    // EXPECT_EQ(distances[1 * k], 0);
+
 }
 
 TEST(IVFPQ, codec) {

@@ -25,6 +25,11 @@ struct IndexPQ : IndexFlatCodes {
     /// The product quantizer used to encode the vectors
     ProductQuantizer pq;
 
+    /// The radius of the PQ codes
+    /// (i.e. the distance to the furthest centroid that makes up the code)
+    /// One entry per code
+    std::vector<size_t> code_radius;
+
     /** Constructor.
      *
      * @param d      dimensionality of the input vectors
@@ -46,8 +51,7 @@ struct IndexPQ : IndexFlatCodes {
             size_t* frequency,
             const SearchParameters* params = nullptr);
 
-    // override add method
-    void add(idx_t n, const float* x) override;
+    void add_code_callback(idx_t idx, const float* x, const uint8_t* code) override;
 
     void search(
             idx_t n,

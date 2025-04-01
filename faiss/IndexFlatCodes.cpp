@@ -14,6 +14,7 @@
 #include <faiss/impl/IDSelector.h>
 #include <faiss/impl/ResultHandler.h>
 #include <faiss/utils/extra_distances.h>
+#include "IndexFlatCodes.h"
 
 namespace faiss {
 
@@ -30,15 +31,35 @@ void IndexFlatCodes::add(idx_t n, const float* x) {
 
     codes.resize((ntotal + n) * code_size);
     sa_encode(n, x, codes.data() + (ntotal * code_size));
+   
+    // copy the created codes so we can iterate over them, finding their proper code in map
+    std::vector<uint8_t> created_codes(codes.begin() + (ntotal * code_size), codes.end());
+    // map from code to vector
+    std::unordered_map<std::vector<uint8_t>, std::vector<const float*>, VectorHasher> created_codes_map;
+    
+    std::vector<uint8_t> tmp(code_size);
+    for (size_t i = 0; i < n; i++) {
+        memcpy(tmp.data(),
+            codes.data() + (ntotal + i) * code_size,
+            code_size);
+        if (created_codes_map.find(tmp) == created_codes_map.end()) {
+            created_codes_map[tmp] = std::vector<const float*>(1, x + i * d);
+        } else {
+            created_codes_map[tmp].push_back(x + i * d);
+        }
+    }
+
     ntotal += n;
     clean_up_last_n_entries(n);
-    rebuild_seen_index();
+    rebuild_seen_index(n, created_codes_map);
 }
 
-void IndexFlatCodes::rebuild_seen_index() {
+void IndexFlatCodes::rebuild_seen_index(idx_t n,
+    std::unordered_map<std::vector<uint8_t>, std::vector<const float*>, VectorHasher>& created_codes_map) {
     std::vector<uint8_t> tmp(code_size);
     std::vector<idx_t> to_remove_idx;
     seen_codes_by_label.resize(ntotal);
+    size_t created_codes_i = 0;
 
     for (idx_t idx_ptr = 0; idx_ptr < ntotal; idx_ptr++) {
         memcpy(tmp.data(),
@@ -50,7 +71,24 @@ void IndexFlatCodes::rebuild_seen_index() {
             throw FaissException("Seen code not found, expected to be there");
         }
         seen_codes_by_label[idx_ptr] = seen_codes.at(tmp);
+
+        if (created_codes_map.find(tmp) != created_codes_map.end()) {
+            for (const float* x_ptr : created_codes_map[tmp]) {
+                add_code_callback(idx_ptr, x_ptr, tmp.data());
+                created_codes_i++;
+                assert(created_codes_i <= n);
+            }
+        }
     }
+
+    if (created_codes_i != n) {
+        fprintf(stderr, "created_codes_i: %zu, n: %zu\n", created_codes_i, n);
+        throw FaissException("Not all created codes were found");
+    }
+}
+
+void IndexFlatCodes::add_code_callback(idx_t idx, const float* x, const uint8_t* code) {
+    // do nothing
 }
 
 // Returns the number of removed entries
@@ -61,7 +99,7 @@ size_t IndexFlatCodes::clean_up_last_n_entries(idx_t n) {
     // clear up added dupes
     std::vector<uint8_t> tmp(code_size);
     std::vector<idx_t> to_remove_idx;
-    for (idx_t idx_ptr = original_ntotal; idx_ptr < n + original_ntotal; idx_ptr++) {
+    for (idx_t idx_ptr = original_ntotal; idx_ptr < ntotal; idx_ptr++) {
         memcpy(tmp.data(),
             codes.data() + idx_ptr * code_size,
             code_size);
@@ -85,15 +123,18 @@ void IndexFlatCodes::add_sa_codes(
         idx_t n,
         const uint8_t* codes_in,
         const idx_t* /* xids */) {
-    codes.resize((ntotal + n) * code_size);
-    memcpy(codes.data() + (ntotal * code_size), codes_in, n * code_size);
-    ntotal += n;
-    clean_up_last_n_entries(n);
-    rebuild_seen_index();
+    throw FaissException("blocking this function for now as it wont work");
+    // codes.resize((ntotal + n) * code_size);
+    // memcpy(codes.data() + (ntotal * code_size), codes_in, n * code_size);
+    // ntotal += n;
+    // clean_up_last_n_entries(n);
+    // rebuild_seen_index();
 }
 
 void IndexFlatCodes::reset() {
     codes.clear();
+    seen_codes.clear();
+    seen_codes_by_label.clear();
     ntotal = 0;
 }
 

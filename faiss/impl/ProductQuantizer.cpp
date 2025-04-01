@@ -22,6 +22,7 @@
 #include <faiss/impl/FaissAssert.h>
 #include <faiss/utils/distances.h>
 #include <faiss/utils/sorting.h>
+#include "ProductQuantizer.h"
 
 extern "C" {
 
@@ -68,6 +69,9 @@ void ProductQuantizer::set_derived_values() {
     centroids.resize(d * ksub);
     centroid_radius.resize(M * ksub);
     centroid_n.resize(M * ksub);
+    // This is rough math, we might need to tweak this.
+    local_idx_div = ksub * M; 
+    printf("PQ divisior for local centroid is: %zu\n", local_idx_div);
     enable_neighbourhood_radius = false;
     verbose = true;
     train_type = Train_default;
@@ -75,7 +79,8 @@ void ProductQuantizer::set_derived_values() {
 
 template <class PQDecoder>
 void compute_update_centroid_radi(
-    ProductQuantizer& pq, 
+    ProductQuantizer& pq,
+    const idx_t idx, 
     const uint8_t* code, 
     const float* x) {
     PQDecoder decoder(code, pq.nbits);
@@ -86,42 +91,52 @@ void compute_update_centroid_radi(
         float dist = fvec_L2sqr(x_m, c_m_c, pq.dsub);
         
         // update the centroid radius
-        size_t c_n = pq.centroid_n[m * pq.ksub + c];
-        pq.centroid_radius[m * pq.ksub + c] = (((float) c_n) * pq.centroid_radius[m * pq.ksub + c] + dist) / (c_n + 1);
-        pq.centroid_n[m * pq.ksub + c]++;
+
+        // option 1: avg, not so good results
+        // size_t c_n = pq.centroid_n[m * pq.ksub + c];
+        // pq.centroid_radius[m * pq.ksub + c] = (((float) c_n) * pq.centroid_radius[m * pq.ksub + c] + dist) / (c_n + 1);
+        // pq.centroid_n[m * pq.ksub + c]++;
+
+        // option 2: max worse, global max is too big
+        // if (dist > pq.centroid_radius[m * pq.ksub + c]) {
+        //     pq.centroid_radius[m * pq.ksub + c] = dist;
+        // }
+
+
+        // option 3: max, local to idx
+        
+        // resize array if needed
+        size_t min_cetroid_array_size = ((idx / pq.local_idx_div) + 1) * pq.M * pq.ksub;
+        if (pq.centroid_radius.size() < min_cetroid_array_size) {
+            pq.centroid_radius.resize(min_cetroid_array_size);
+        }
+        
+        float *local_centroid_radius = pq.centroid_radius.data() + (idx / pq.local_idx_div) * pq.M * pq.ksub; 
+        if (dist > local_centroid_radius[m * pq.ksub + c]) {
+            local_centroid_radius[m * pq.ksub + c] = dist;
+        }
     }
 }
 
 void ProductQuantizer::update_cetroid_radi(
+    const idx_t idx,
+    const uint8_t* code,
     const float* x
 ) {
-    std::unique_ptr<uint8_t[]> code(new uint8_t[code_size]);
-    // TODO: encoding the code here, maybe we can avoid doing this?
-    compute_code(x, code.get());
     switch (nbits) {
         case 8:
-            faiss::compute_update_centroid_radi<PQDecoder8>(*this, code.get(), x);
+            faiss::compute_update_centroid_radi<PQDecoder8>(*this, idx, code, x);
             break;
 
         case 16:
-            faiss::compute_update_centroid_radi<PQDecoder16>(*this, code.get(), x);
+            faiss::compute_update_centroid_radi<PQDecoder16>(*this, idx, code, x);
             break;
 
         default:
-            faiss::compute_update_centroid_radi<PQDecoderGeneric>(*this, code.get(), x);
+            faiss::compute_update_centroid_radi<PQDecoderGeneric>(*this, idx, code, x);
             break;
     }
 }
-
-void ProductQuantizer::update_cetroid_radi(
-        const float* x,
-        size_t n
-    ) {
-    #pragma omp parallel for if (n > 100)
-        for (int64_t i = 0; i < n; i++) {
-            this->update_cetroid_radi(x + d * i);
-        }
-    }
 
 void ProductQuantizer::set_params(const float* centroids_, int m) {
     memcpy(get_centroids(m, 0),
@@ -770,7 +785,8 @@ void pq_estimators_from_tables(
         float dis = 0;
         const float* __restrict dt = dis_table;
         for (int m = 0; m < M; m++) {
-            if (pq.enable_neighbourhood_radius && dt[*codes] <= pq.centroid_radius[m * pq.ksub + *codes]) {
+            const float *local_centroid_radius = pq.centroid_radius.data() + (j / pq.local_idx_div) * pq.M * pq.ksub;
+            if (pq.enable_neighbourhood_radius && dt[*codes] <= local_centroid_radius[m * pq.ksub + *codes]) {
                 codes++;
             } else {
                 dis += dt[*codes++];

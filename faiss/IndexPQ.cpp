@@ -22,6 +22,7 @@
 #include <faiss/utils/distances.h>
 
 #include <faiss/impl/code_distance/code_distance.h>
+#include "IndexPQ.h"
 
 namespace faiss {
 
@@ -173,20 +174,9 @@ FlatCodesDistanceComputer* IndexPQ::get_FlatCodesDistanceComputer() const {
     }
 }
 
-void IndexPQ::add(idx_t n, const float* x) {
-    {
-        // get codes current size
-        size_t current_size = codes.size();
-
-        // add items to codes
-        IndexFlatCodes::add(n, x);
-
-        // if the size changes, then we added codes,
-        // update pq with the new codes
-        if (codes.size() != current_size) {
-            pq.update_cetroid_radi(x, n);
-        }
-    }
+void IndexPQ::add_code_callback(
+        idx_t idx, const float* x, const uint8_t* code) {
+    pq.update_cetroid_radi(idx, code, x);
 }
 
 void IndexPQ::search_neighbourhood(

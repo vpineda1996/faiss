@@ -95,12 +95,20 @@ struct IndexFlatCodes : Index {
     virtual void add_sa_codes(idx_t n, const uint8_t* x, const idx_t* xids)
             override;
 
+    virtual void add_code_callback(idx_t idx, const float* x, const uint8_t* code);
+
     // permute_entries. perm of size ntotal maps new to old positions
     void permute_entries(const idx_t* perm);
 
     size_t clean_up_last_n_entries(idx_t n);
 
-    void rebuild_seen_index();
+    
+    void rebuild_seen_index(
+      idx_t n,
+      std::unordered_map<
+              std::vector<uint8_t>,
+              std::vector<const float*>,
+              VectorHasher>& created_codes_map);
 };
 
 } // namespace faiss

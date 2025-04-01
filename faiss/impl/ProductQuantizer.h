@@ -35,6 +35,7 @@ struct ProductQuantizer : Quantizer {
     size_t ksub;  ///< number of centroids for each subquantizer
     bool verbose; ///< verbose during training?
     bool enable_neighbourhood_radius;
+    size_t local_idx_div; ///< local index division factor
 
     /// initialization
     enum train_type_t {
@@ -114,14 +115,12 @@ struct ProductQuantizer : Quantizer {
     void decode(const uint8_t* code, float* x) const;
     void decode(const uint8_t* code, float* x, size_t n) const override;
 
-    void update_cetroid_radi(
-        const float* x
-    );
+    void diameter(const uint8_t* code, float* x) const;
 
     void update_cetroid_radi(
-        const float* x,
-        size_t n
-    );
+            const idx_t idx,
+            const uint8_t* code,
+            const float* x);
 
     /// If we happen to have the distance tables precomputed, this is
     /// more efficient to compute the codes.
