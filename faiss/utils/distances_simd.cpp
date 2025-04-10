@@ -85,6 +85,20 @@ float fvec_Linf_ref(const float* x, const float* y, size_t d) {
     return res;
 }
 
+void fvec_L2sqr_nyc_ref(
+        float* dis,
+        const float* x,
+        const float* y,
+        const float* c,
+        size_t d,
+        size_t ny) {
+    for (size_t i = 0; i < ny; i++) {
+        dis[i] = fvec_L2sqr_with_radius(x, y, c, d);
+        y += d;
+        c += d;
+    }
+}
+
 void fvec_L2sqr_ny_ref(
         float* dis,
         const float* x,
@@ -224,6 +238,23 @@ float fvec_L2sqr(const float* x, const float* y, size_t d) {
     for (i = 0; i < d; i++) {
         const float tmp = x[i] - y[i];
         res += tmp * tmp;
+    }
+    return res;
+}
+FAISS_PRAGMA_IMPRECISE_FUNCTION_END
+
+FAISS_PRAGMA_IMPRECISE_FUNCTION_BEGIN
+float fvec_L2sqr_with_radius(const float* x, const float* y, const float* c, size_t d) {
+    size_t i;
+    float res = 0;
+    FAISS_PRAGMA_IMPRECISE_LOOP
+    for (i = 0; i < d; i++) {
+        float tmp = x[i] - y[i];
+        tmp = tmp * tmp;
+        // if (c[i] > 0) {
+        //     printf("Dim %zu: dist: %f, c: %f\n", i, tmp, c[i]);
+        // }
+        res += std::max(static_cast<float>(0), tmp - c[i]);
     }
     return res;
 }
@@ -3197,6 +3228,16 @@ void fvec_L2sqr_ny(
         size_t d,
         size_t ny) {
     fvec_L2sqr_ny_ref(dis, x, y, d, ny);
+}
+
+void fvec_L2sqr_nyc(
+        float* dis,
+        const float* x,
+        const float* y,
+        const float* c,
+        size_t d,
+        size_t ny) {
+    fvec_L2sqr_nyc_ref(dis, x, y, c, d, ny);
 }
 
 void fvec_L2sqr_ny_transposed(

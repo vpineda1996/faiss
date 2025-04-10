@@ -69,7 +69,7 @@ struct IndexPQ : IndexFlatCodes {
             float* distances,
             idx_t* labels,
             size_t* frequency,
-            const SearchParameters* params) const override;
+            const SearchParameters* params = nullptr) const override;
 
     /* The standalone codec interface */
     void sa_encode(idx_t n, const float* x, uint8_t* bytes) const override;

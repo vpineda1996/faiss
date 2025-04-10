@@ -68,6 +68,7 @@ void ProductQuantizer::set_derived_values() {
     ksub = 1 << nbits;
     centroids.resize(d * ksub);
     centroid_radius.resize(M * ksub);
+    global_centroid_radius.resize(M * ksub * dsub);
     centroid_n.resize(M * ksub);
     // This is rough math, we might need to tweak this.
     local_idx_div = ksub * M; 
@@ -84,6 +85,7 @@ void compute_update_centroid_radi(
     const uint8_t* code, 
     const float* x) {
     PQDecoder decoder(code, pq.nbits);
+
     for (size_t m = 0; m < pq.M; m++) {
         uint64_t c = decoder.decode();
         const float* c_m_c = pq.get_centroids(m, c);
@@ -114,6 +116,17 @@ void compute_update_centroid_radi(
         float *local_centroid_radius = pq.centroid_radius.data() + (idx / pq.local_idx_div) * pq.M * pq.ksub; 
         if (dist > local_centroid_radius[m * pq.ksub + c]) {
             local_centroid_radius[m * pq.ksub + c] = dist;
+        }
+
+        // option 3: max, dist based on single dim
+        // printf("Writing to centroid %zu at m=%zu, index=%zu\n", c, m, m * pq.ksub * pq.dsub + c * pq.dsub);
+        for (size_t i = 0; i < pq.dsub; i++) {
+            size_t gidx = m * pq.ksub * pq.dsub + c * pq.dsub + i;
+            float tmp = x_m[i] - c_m_c[i];
+            tmp *= tmp;
+            if (tmp > pq.global_centroid_radius[gidx]) {
+                pq.global_centroid_radius[gidx] = tmp;
+            }
         }
     }
 }
@@ -250,6 +263,8 @@ void ProductQuantizer::train(size_t n, const float* x) {
                 printf("Training PQ slice %d/%zd\n", m, M);
             }
             IndexFlatL2 index(dsub);
+            // TODO vpineda increase it but for now just do 12 to speedup testing
+            clus.niter = 12;
             clus.train(n, xslice.get(), assign_index ? *assign_index : index);
             set_params(clus.centroids.data(), m);
         }
@@ -573,12 +588,22 @@ void ProductQuantizer::compute_distance_table(const float* x, float* dis_table)
     if (transposed_centroids.empty()) {
         // use regular version
         for (size_t m = 0; m < M; m++) {
-            fvec_L2sqr_ny(
+            fvec_L2sqr_nyc(
                     dis_table + m * ksub,
                     x + m * dsub,
                     get_centroids(m, 0),
+                    get_centroids_radius(m),
                     dsub,
                     ksub);
+
+            // printf("Table for m=%zu:\n", m);
+            // for (int i = 0; i < ksub; i++) {
+            //     if (i % 10 == 0) {
+            //         printf("\n%3d:\t", i);
+            //     }
+            //     printf("%f ", dis_table[m *ksub + i]);
+            // }
+            // printf("\n");
         }
     } else {
         // transposed centroids are available, use'em
@@ -614,34 +639,34 @@ void ProductQuantizer::compute_distance_tables(
         size_t nx,
         const float* x,
         float* dis_tables) const {
-#if defined(__AVX2__) || defined(__aarch64__)
-    if (dsub == 2 && nbits < 8) { // interesting for a narrow range of settings
-        compute_PQ_dis_tables_dsub2(
-                d, ksub, centroids.data(), nx, x, false, dis_tables);
-    } else
-#endif
-            if (dsub < 16) {
+// #if defined(__AVX2__) || defined(__aarch64__)
+//     if (dsub == 2 && nbits < 8) { // interesting for a narrow range of settings
+//         compute_PQ_dis_tables_dsub2(
+//                 d, ksub, centroids.data(), nx, x, false, dis_tables);
+//     } else
+// #endif
+            // if (dsub < 16) {
 
 #pragma omp parallel for if (nx > 1)
         for (int64_t i = 0; i < nx; i++) {
             compute_distance_table(x + i * d, dis_tables + i * ksub * M);
         }
 
-    } else { // use BLAS
-
-        for (int m = 0; m < M; m++) {
-            pairwise_L2sqr(
-                    dsub,
-                    nx,
-                    x + dsub * m,
-                    ksub,
-                    centroids.data() + m * dsub * ksub,
-                    dis_tables + ksub * m,
-                    d,
-                    dsub,
-                    ksub * M);
-        }
-    }
+    // } else { // use BLAS
+    //     throw FaissException("Not supported for now");
+    //     for (int m = 0; m < M; m++) {
+    //         pairwise_L2sqr(
+    //                 dsub,
+    //                 nx,
+    //                 x + dsub * m,
+    //                 ksub,
+    //                 centroids.data() + m * dsub * ksub,
+    //                 dis_tables + ksub * m,
+    //                 d,
+    //                 dsub,
+    //                 ksub * M);
+    //     }
+    // }
 }
 
 void ProductQuantizer::compute_inner_prod_tables(
@@ -786,7 +811,9 @@ void pq_estimators_from_tables(
         const float* __restrict dt = dis_table;
         for (int m = 0; m < M; m++) {
             const float *local_centroid_radius = pq.centroid_radius.data() + (j / pq.local_idx_div) * pq.M * pq.ksub;
-            if (pq.enable_neighbourhood_radius && dt[*codes] <= local_centroid_radius[m * pq.ksub + *codes]) {
+            if (pq.enable_neighbourhood_radius) {
+                dis += std::max(
+                        static_cast<float>(0.0), dt[*codes] - local_centroid_radius[m * pq.ksub + *codes]);
                 codes++;
             } else {
                 dis += dt[*codes++];

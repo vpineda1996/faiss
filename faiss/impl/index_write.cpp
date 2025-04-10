@@ -158,6 +158,7 @@ void write_ProductQuantizer(const ProductQuantizer* pq, IOWriter* f) {
     WRITE1(pq->nbits);
     WRITEVECTOR(pq->centroids);
     WRITEVECTOR(pq->centroid_radius);
+    WRITEVECTOR(pq->global_centroid_radius);
 }
 
 static void write_AdditiveQuantizer(const AdditiveQuantizer* aq, IOWriter* f) {

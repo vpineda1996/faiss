@@ -58,9 +58,16 @@ struct ProductQuantizer : Quantizer {
     std::vector<float> centroids;
 
     /// Describes the max diameter of
-    /// a centroid in the subspace
+    /// a centroid in the subspace for a local neighbourhood
     /// Layout: (M, ksub)
     std::vector<float> centroid_radius;
+
+  /// Describes the max diameter of
+  /// a centroid for each dimension, creating a hypercube
+  /// description of the radius
+  /// Layout: (M, ksub, dsub)
+    std::vector<float> global_centroid_radius;
+
     /// Describes the number of times the centroid has been used
     /// Layout: (M, ksub)
     std::vector<size_t> centroid_n;
@@ -126,6 +133,21 @@ struct ProductQuantizer : Quantizer {
     /// more efficient to compute the codes.
     void compute_code_from_distance_table(const float* tab, uint8_t* code)
             const;
+
+    const float* get_centroids_radius(const size_t m) const {
+      // printf("Using centroids starting at index %zu until %zu\n", m * ksub * dsub, (m + 1) * ksub * dsub);
+      //
+      // printf("Table for m=%zu:\n", m);
+      // for (int i = 0; i < ksub * dsub; i++) {
+      //   if (i % dsub == 0) {
+      //     printf("\n%3lu(%5lu):\t", i / dsub, m * ksub * dsub + i);
+      //   }
+      //   printf("%f ", global_centroid_radius[m * ksub * dsub + i]);
+      // }
+      // printf("\n");
+
+      return &global_centroid_radius[m * ksub * dsub];
+    }
 
     /** Compute distance table for one vector.
      *

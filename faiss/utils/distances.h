@@ -27,6 +27,10 @@ struct IDSelector;
 /// Squared L2 distance between two vectors
 float fvec_L2sqr(const float* x, const float* y, size_t d);
 
+/// Squared L2 distance between two vectors considering radius of each y
+/// distance is to the boundary of the radius of the neighbourhood
+float fvec_L2sqr_with_radius(const float* x, const float* y, const float* r, size_t d);
+
 /// inner product
 float fvec_inner_product(const float* x, const float* y, size_t d);
 
@@ -98,6 +102,15 @@ void fvec_L2sqr_ny(
         float* dis,
         const float* x,
         const float* y,
+        size_t d,
+        size_t ny);
+
+/* same as fvec_L2sqr_ny but with centroids */
+void fvec_L2sqr_nyc(
+        float* dis,
+        const float* x,
+        const float* y,
+        const float* c,
         size_t d,
         size_t ny);
 

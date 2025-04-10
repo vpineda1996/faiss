@@ -59,7 +59,128 @@ bool runs_on_sandcastle() {
     return false;
 }
 
-TEST(IndexPQ, codec) {
+
+TEST(IndexPQ, dist) {
+    std::vector<float> database(nb * d);
+    std::mt19937 rng;
+    std::uniform_real_distribution<> distrib(0.0, 1.0);
+    for (size_t i = 0; i < nb * d; i++) {
+        database[i] = distrib(rng);
+    }
+
+    // limit number of threads when running on heavily parallelized test
+    // environment
+    if (runs_on_sandcastle()) {
+        omp_set_num_threads(2);
+    }
+
+    // Create and train the IndexPQ
+    int m = 8; // number of subquantizers
+    int nbits = 8; // bits per subquantizer
+    faiss::IndexPQ index(d, m, nbits);
+    index.train(256, database.data() + 10 * d);
+
+    // Encode and decode to compute reconstruction error
+    std::vector<uint8_t> codes(nb * m);
+
+    index.add(1, database.data());
+    index.add(1, database.data() + d);
+    index.add(1, database.data() + 2 * d);
+    index.add(1, database.data() + 3 * d);
+
+    for (int i = 0; i < 49; i++) {
+        std::vector<float> v(database.data() + 4 * d, database.data() + 5 * d);
+        v[0] = distrib(rng) + 100;
+        index.add(1, v.data());
+    }
+
+    // add a datapoint that skews the average higher
+    std::vector<float> v(database.data() + 4 * d, database.data() + 5 * d);
+    v[0] = distrib(rng) + 200;
+    index.add(1, v.data());
+
+    // modify 0th coord of the 4th vector to fall within the radius
+    database[4 * d] = 100;
+
+    size_t k = 4;
+    size_t nprobe = 5;
+    std::vector<faiss::idx_t> neighbors(nprobe * k * d);
+    std::vector<float> distances(nprobe * k);
+    std::vector<size_t> freq(nprobe * k);
+
+    index.search_frequencies(nprobe, database.data(), k, distances.data(), neighbors.data(), freq.data());
+
+    for (int i = 0; i < nprobe; i++) {
+        for (int j = 0; j < k; j++) {
+            printf("[i=%d][k=%d] Distance: %f, Neighbor: %ld, Frequency: %zu\n", i, j, distances[i * k + j], neighbors[i * k + j], freq[i * k + j]);
+        }
+    }
+
+    // first distance should be zero for the first 4 vectors
+    for (int i = 0; i < 4; i++) {
+        EXPECT_EQ(distances[i * k], 0);
+        EXPECT_GE(distances[i * k + 1], 0);
+        EXPECT_EQ(neighbors[i * k], i);
+        EXPECT_EQ(freq[i * k], 1);
+    }
+
+    // within radius
+    EXPECT_EQ(neighbors[k * k], 4);
+    EXPECT_EQ(distances[k * k], 0);
+
+    // k+1... vector should have a non-zero distance to its first neighbor
+    for (int i = k+1; i < nprobe; i++) {
+        EXPECT_GT(distances[i * k], 0);
+    }
+
+    // outside radius by avg
+    // database[4 * d] = 120;
+    // index.search_frequencies(nprobe, database.data(), k, distances.data(), neighbors.data(), freq.data());
+    // EXPECT_EQ(neighbors[k * k], 4);
+    // // l2 should be greater than 100
+    // EXPECT_GT(distances[k * k], 100*100);
+
+    // inject many points, test centroid radius age
+    // first group
+    database[5 * d + 1] = 1000;
+    index.add(index.pq.local_idx_div, database.data() + 5 * d);
+
+    index.search_frequencies(1, database.data() + 5 * d, k, distances.data(), neighbors.data(), freq.data());
+
+    for (int i = 0; i < 1; i++) {
+        for (int j = 0; j < k; j++) {
+            printf("[i=%d][k=%d] Distance: %f, Neighbor: %ld, Frequency: %zu\n", i, j, distances[i * k + j], neighbors[i * k + j], freq[i * k + j]);
+        }
+    }
+
+    // second group
+    database[5 * d + index.pq.dsub + 1] = 50;
+    index.add(1, database.data() + 5 * d);
+    index.search_frequencies(1, database.data() + 5 * d, k, distances.data(), neighbors.data(), freq.data());
+
+    for (int i = 0; i < 1; i++) {
+        for (int j = 0; j < k; j++) {
+            printf("[i=%d][k=%d] Distance: %f, Neighbor: %ld, Frequency: %zu\n", i, j, distances[i * k + j], neighbors[i * k + j], freq[i * k + j]);
+        }
+    }
+
+    EXPECT_EQ(distances[0], 0);
+    // EXPECT_EQ(neighbors[1], 5);
+
+    // Should not match on second neighborhood
+    EXPECT_GE(distances[1], 25*25);
+
+
+    // should match to different pq clusters
+    // EXPECT_NE(neighbors[0 * k], neighbors[1 * k]);
+
+    // // zero distance to itself
+    // EXPECT_EQ(distances[0 * k], 0);
+    // EXPECT_EQ(distances[1 * k], 0);
+
+}
+
+TEST(IndexPQ, neighbourhood) {
     std::vector<float> database(nb * d);
     std::mt19937 rng;
     std::uniform_real_distribution<> distrib(0.0, 1.0);
