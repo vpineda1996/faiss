@@ -588,11 +588,10 @@ void ProductQuantizer::compute_distance_table(const float* x, float* dis_table)
     if (transposed_centroids.empty()) {
         // use regular version
         for (size_t m = 0; m < M; m++) {
-            fvec_L2sqr_nyc(
+            fvec_L2sqr_ny(
                     dis_table + m * ksub,
                     x + m * dsub,
                     get_centroids(m, 0),
-                    get_centroids_radius(m),
                     dsub,
                     ksub);
 
